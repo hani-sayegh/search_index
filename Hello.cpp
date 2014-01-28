@@ -93,35 +93,79 @@
 //
 //	cout << charsCopied << " characters copied." << endl;
 //}
-	
+
 #include <fstream>
 #include <string>
 #include <vector>
-	
+#include <cctype>
+#include <algorithm>
 
 using namespace std;
 
+char change_case(char c) 
+{
+	if (std::isupper(c))
+		return std::tolower(c);
+	else
+	{
+		return c;
+	}
+}
+
 int main()
 {
-		ifstream ifs("fileNames.txt"); //Contains all other files.
+	////For debugging.
+	//cout << sqrt(25) << endl;
+	//system("pause");
 
-		string fileName;
-		ifs >> fileName; //Read the first file name.
+	ifstream ifs("fileNames.txt"); //Contains all other files.
+	string fileName;
 
+	vector<string> index; //This will contain all the different words. 
+	while (ifs >> fileName) //Read all content of all file names.
+	{
 		ifstream ifs2(fileName.c_str()); //Open the new file.
-
-		vector<string> index; //This will contain all the different words. 
-		
 		string word;
-		index.push_back("hani");
 		while (ifs2 >> word)
 		{
-			index.push_back(word);
-		}
-		
+			std::transform(word.begin(), word.end(), word.begin(), change_case);
 
-		vector<vector<int>> documents; //Contains the different documents.
-		ifstream ifs3(fileName.c_str()); //Open the file again.
+			bool duplicate = false;
+
+			//Checks for duplicates by comparing current word to rest of index.			
+			for (int i = 0; i < index.size(); ++i)
+			{
+				if (word == index[i])
+				{
+					duplicate = true;
+					break;
+				}
+			}
+			if (!duplicate)
+			{
+				index.push_back(word);
+			}
+		}
+	}
+
+	//This is for debuging.
+	std::cout << endl << "This is the contents of the index:- " << endl << endl;
+	for (string word : index)
+	{
+		std::cout << "\"" << word << "\"" << "\t";
+	}
+	std::cout << endl << endl;
+	//@ this point the whole index should have been created.
+	/*************************************************************/
+
+	ifstream openAgain("fileNames.txt"); //Contains all other files.
+	string fileName2, word2;
+	vector<vector<int>> documents; //Contains the different documents.
+	int debugging = 0;
+
+	while (openAgain >> fileName2)
+	{
+		ifstream ifs3(fileName2.c_str()); //Open the file again.
 
 		vector<int> row; //Vector for current document.
 
@@ -130,66 +174,161 @@ int main()
 		{
 			string currentWord = index[i]; //Current word in index. 
 
-			bool found = false; //Have we found the word?
 			//Loop will check all words with currentWord, if match is found,
 			//will increment by 1 for now, no match will increment by 0.
-			while (ifs3 >> word)
+			int frequency = 0;
+			while (ifs3 >> word2)
 			{
-				if (word == currentWord)
+				std::transform(word2.begin(), word2.end(), word2.begin(), change_case);
+
+				if (word2 == currentWord)
 				{
-					row.push_back(1);					
-					ifs3.seekg(0, ios::beg); //Reset the stream???
-					found = true;
-					break;
-				}	
+					++frequency;
+				}
 			}
+			row.push_back(frequency);
+
 			if (ifs3.eof())
 			{
 				ifs3.clear();
 				ifs3.seekg(0, ios::beg); //Reset the stream???
 			}
-			if (found != true)
-			{
-				row.push_back(0);
-			}		
 		}
 		documents.push_back(row);
 
-		
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 		//This is for debuging.
-		int length = documents[0].size();
+		int length = documents[debugging].size();
+		std::cout << "This contains the vector of the " 
+			      << debugging + 1 
+				  << "st document" 
+				  << endl;
+
 		for (int i = 0; i < length; ++i)
 		{
-			cout << documents[0][i] << endl;
+			std::cout << documents[debugging][i] << "\t ";
 		}
+		std::cout << endl << endl;
+		++debugging;
+	}
 
-		//This is for debuging.
-		for (string word : index)
+		
+	std::cout << "Enter your query:-" << endl;
+	vector<string> totalQuery;
+	string query;
+	while (cin >> query) //Only reads first???//How to not use control z.
+	{
+		std::transform(query.begin(), query.end(), query.begin(), change_case);
+		totalQuery.push_back(query);		
+	}
+
+	vector<int> queryVector; //Contains vector of the query.
+	for (int i = 0; i < index.size(); ++i)
+	{
+		string currentWord = index[i];
+		int frequency = 0;
+		for (int j = 0; j < totalQuery.size(); ++j)
 		{
-			cout << word << endl;
+			if (totalQuery[j] == index[i]) //.equals() for string?
+			{
+				++frequency;
+			}
+		}
+		queryVector.push_back(frequency);
+	}
+
+	vector<double> cosSimValues;
+	for (int allDocs = 0; allDocs < documents.size(); ++allDocs)
+	{
+		int numerator = 0; //needs queryVector & documets[i] vector for now.
+		//Does seem to give warning for reuse of i when bulding, can u change settings?
+		for (int i = 0; i < queryVector.size(); ++i)
+		{
+			numerator += queryVector[i] * documents[allDocs][i];
 		}
 
-	system("pause");
+		double queryDistance = 0.0;
+		for (int i = 0; i < queryVector.size(); ++i)
+		{
+			queryDistance += pow(queryVector[i], 2);	//#include ????
+		}
+		queryDistance = sqrt(queryDistance);
+		/*****************************************************************/
+		double docVectorDistance = 0;
+		for (int i = 0; i < queryVector.size(); ++i)
+		{
+			docVectorDistance += pow(documents[allDocs][i], 2);	//#include ????
+		}
+		docVectorDistance = sqrt(docVectorDistance);
+
+		double denominator = docVectorDistance * queryDistance;
+
+		double cosineSimilarity = numerator / denominator;
+		cosSimValues.push_back(cosineSimilarity);
+	}
+
+	vector<double> copy = cosSimValues;
+	sort(cosSimValues.begin(), cosSimValues.end()); //Why not by reference? Maybe
+	                                               //Cuz of actual function.
+
+
+	ifstream documentNames("fileNames.txt");
+	vector<string> allDocumentNames;
+	string theName;
+	while (documentNames >> theName)
+	{
+		allDocumentNames.push_back(theName);
+	}
+
+	int top = 1; //TODO fix bug.
+	int highest = cosSimValues.size() - 1;
+	for (int i = highest; i > highest - top; --i)
+	{
+		string finallyyy;
+		for (int gogo = 0; gogo < copy.size(); ++gogo)
+		{
+			if (cosSimValues[i] == copy[gogo])
+			{
+				finallyyy = allDocumentNames[gogo];
+				break;
+			}
+		}
+		cout << "Rank" << i - top << ": " << finallyyy << " " 
+			 << cosSimValues[i] << endl;
+	}
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	std::system("pause");
 	return 0;
 }
